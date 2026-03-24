@@ -1,0 +1,93 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+
+df = pd.read_csv("Seed Results.csv")
+
+df.columns = df.columns.str.strip().str.replace('%', '_pct')
+df["CHAMP_pct"] = df["CHAMP_pct"].str.replace('%','').astype(float) / 100
+
+df["R32_rate"] = df["R32"] / df["R64"]
+df["S16_rate"] = df["S16"] / df["R32"]
+df["E8_rate"]  = df["E8"]  / df["S16"]
+df["F4_rate"]  = df["F4"]  / df["E8"]
+df["F2_rate"]  = df["F2"]  / df["F4"]
+df["CHAMP_rate"] = df["CHAMP"] / df["F2"]
+
+df_matchups = pd.read_csv("Tournament Matchups.csv")
+
+round_counts = (
+    df_matchups
+    .groupby(["CURRENT ROUND", "SEED"])
+    .size()
+    .unstack(fill_value=0)
+)
+round_pct = round_counts.div(round_counts.sum(axis=1), axis=0)
+
+plt.figure()
+bars = plt.bar(df["SEED"], df["WIN_pct"])
+
+sns.set_style("white")
+
+# Create subplot layout
+fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+
+# Bar Chart (top-left)
+axs[0, 0].bar(df["SEED"], df["WIN_pct"], color="navy")
+
+axs[0, 0].set_title("Win Percentage by Seed")
+axs[0, 0].set_xlabel("Seed")
+axs[0, 0].set_ylabel("Win Percentage")
+
+for i, v in enumerate(df["WIN_pct"]):
+    axs[0, 0].text(df["SEED"].iloc[i], v, f"{v:.1%}",
+                   ha='center', va='bottom', fontsize=8)
+
+# Line Chart (top-right)
+plot_df = df.sort_values("SEED")
+
+axs[0, 1].plot(plot_df["SEED"], plot_df["S16_rate"], marker="o", label="Sweet 16")
+axs[0, 1].plot(plot_df["SEED"], plot_df["E8_rate"], marker="o", label="Elite 8")
+axs[0, 1].plot(plot_df["SEED"], plot_df["F4_rate"], marker="o", label="Final Four")
+axs[0, 1].plot(plot_df["SEED"], plot_df["CHAMP_rate"], marker="o", label="Champion")
+
+axs[0, 1].set_title("How Seed Affects Tournament Runs")
+axs[0, 1].set_xlabel("Seed")
+axs[0, 1].set_ylabel("Probability")
+axs[0, 1].legend()
+axs[0, 1].grid(alpha=0.3)
+
+# Heatmap 1 (bottom-left)
+sns.heatmap(
+    heatmap_data.sort_index(ascending=False),
+    ax=axs[1, 0],
+    cmap="YlGnBu",
+    annot=True,
+    fmt=".2f",
+    cbar=False
+)
+
+axs[1, 0].invert_yaxis()
+axs[1, 0].set_title("Advancement Probability by Seed and Tournament Round")
+axs[1, 0].set_xlabel("Round")
+axs[1, 0].set_ylabel("Seed")
+
+# Heatmap 2 (bottom-right)
+sns.heatmap(
+    round_pct.sort_index(ascending=False),
+    ax=axs[1, 1],
+    cmap="YlGnBu",
+    annot=True,
+    fmt=".2f"
+)
+axs[1, 1].invert_yaxis()
+axs[1, 1].set_title("Distribution of Seeds by Tournament Round")
+axs[1, 1].set_xlabel("Seed")
+axs[1, 1].set_ylabel("Round")
+
+# Final Layout
+plt.suptitle("March Madness Seed Analysis Dashboard", fontsize=16, weight='bold')
+plt.tight_layout()
+plt.show()
