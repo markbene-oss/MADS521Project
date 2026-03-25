@@ -26,68 +26,185 @@ round_counts = (
 )
 round_pct = round_counts.div(round_counts.sum(axis=1), axis=0)
 
-plt.figure()
-bars = plt.bar(df["SEED"], df["WIN_pct"])
+heatmap_data = df.set_index("SEED")[[
+    "R32_rate",
+    "S16_rate",
+    "E8_rate",
+    "F4_rate",
+    "F2_rate",
+    "CHAMP_rate"
+]]
+
+heatmap_data = heatmap_data.rename(columns={
+    "R32_rate": "Round of 32",
+    "S16_rate": "Sweet 16",
+    "E8_rate": "Elite 8",
+    "F4_rate": "Final Four",
+    "F2_rate": "Final",
+    "CHAMP_rate": "Champion"
+})
 
 sns.set_style("white")
+
+# Choose the seed to highlight
+highlight_seed = int(input("Enter a seed to highlight (1–16): "))
+
+# Make sure data is sorted
+plot_df = df.sort_values("SEED").copy()
+heatmap_plot = heatmap_data.sort_index(ascending=True).copy()
+round_pct_plot = round_pct.sort_index(ascending=True).copy()
 
 # Create subplot layout
 fig, axs = plt.subplots(2, 2, figsize=(14, 10))
 
-# Bar Chart (top-left)
-axs[0, 0].bar(df["SEED"], df["WIN_pct"], color="navy")
+# Bar Chart
+bar_colors = ["navy" if seed != highlight_seed else "orange" for seed in plot_df["SEED"]]
 
-axs[0, 0].set_title("Win Percentage by Seed")
+bars = axs[0, 0].bar(plot_df["SEED"], plot_df["WIN_pct"], color=bar_colors)
+
+# Add labels INSIDE bars
+for bar, seed, y in zip(bars, plot_df["SEED"], plot_df["WIN_pct"]):
+
+    if y>.1:
+        axs[0, 0].text(
+            bar.get_x() + bar.get_width() / 2,
+            y * 0.5,
+            f"{y:.1%}",
+            ha="center",
+            va="center",
+            rotation=90,
+            color="white",
+            fontsize=8,
+            fontweight="bold" if seed == highlight_seed else "normal"
+        )
+    else:
+        axs[0, 0].text(
+            bar.get_x() + bar.get_width() / 2,
+            y + 0.05,
+            f"{y:.1%}",
+            ha="center",
+            va="center",
+            rotation=90,
+            fontsize=8,
+            fontweight="bold" if seed == highlight_seed else "normal"
+        )
+
+axs[0, 0].set_title("Win % by Seed")
 axs[0, 0].set_xlabel("Seed")
 axs[0, 0].set_ylabel("Win Percentage")
 
-for i, v in enumerate(df["WIN_pct"]):
-    axs[0, 0].text(df["SEED"].iloc[i], v, f"{v:.1%}",
-                   ha='center', va='bottom', fontsize=8)
+# Line Chart
+round_lines = [
+    ("S16_rate", "Sweet 16"),
+    ("E8_rate", "Elite 8"),
+    ("F4_rate", "Final Four"),
+    ("CHAMP_rate", "Champion")
+]
 
-# Line Chart (top-right)
-plot_df = df.sort_values("SEED")
+for col, label in round_lines:
+    axs[0, 1].plot(
+        plot_df["SEED"],
+        plot_df[col],
+        marker="o",
+        linewidth=2,
+        label=label
+    )
 
-axs[0, 1].plot(plot_df["SEED"], plot_df["S16_rate"], marker="o", label="Sweet 16")
-axs[0, 1].plot(plot_df["SEED"], plot_df["E8_rate"], marker="o", label="Elite 8")
-axs[0, 1].plot(plot_df["SEED"], plot_df["F4_rate"], marker="o", label="Final Four")
-axs[0, 1].plot(plot_df["SEED"], plot_df["CHAMP_rate"], marker="o", label="Champion")
+# Highlight the selected seed across all lines
+highlight_row = plot_df.loc[plot_df["SEED"] == highlight_seed]
 
-axs[0, 1].set_title("How Seed Affects Tournament Runs")
+if not highlight_row.empty:
+    for col, label in round_lines:
+        axs[0, 1].scatter(
+            highlight_seed,
+            highlight_row[col].iloc[0],
+            s=120,
+            color="orange",
+            edgecolor="black",
+            zorder=5
+        )
+
+axs[0, 1].axvline(highlight_seed, color="orange", linestyle="--", alpha=0.7)
+axs[0, 1].set_title("Deep Advancement by Seed")
 axs[0, 1].set_xlabel("Seed")
 axs[0, 1].set_ylabel("Probability")
 axs[0, 1].legend()
 axs[0, 1].grid(alpha=0.3)
 
-# Heatmap 1 (bottom-left)
+# Heatmap 1
 sns.heatmap(
-    heatmap_data.sort_index(ascending=False),
+    heatmap_plot,
     ax=axs[1, 0],
     cmap="YlGnBu",
     annot=True,
     fmt=".2f",
-    cbar=False
+    cbar=False,
+    linewidths=0.5,
+    linecolor="white"
 )
 
 axs[1, 0].invert_yaxis()
-axs[1, 0].set_title("Advancement Probability by Seed and Tournament Round")
+axs[1, 0].set_title("Advancement Probability by Seed")
 axs[1, 0].set_xlabel("Round")
 axs[1, 0].set_ylabel("Seed")
 
-# Heatmap 2 (bottom-right)
+# Highlight selected seed row
+if highlight_seed in heatmap_plot.index:
+    row_pos = list(heatmap_plot.index).index(highlight_seed)
+    rect = plt.Rectangle(
+        (0, row_pos),                  # x, y
+        heatmap_plot.shape[1],         # width
+        1,                             # height
+        fill=False,
+        edgecolor="orange",
+        linewidth=3,
+        clip_on=False
+    )
+    axs[1, 0].add_patch(rect)
+
+# Put seed 1 at top
+axs[1, 0].invert_yaxis()
+
+# Heatmap 2
 sns.heatmap(
-    round_pct.sort_index(ascending=False),
+    round_pct_plot,
     ax=axs[1, 1],
     cmap="YlGnBu",
     annot=True,
-    fmt=".2f"
+    fmt=".2f",
+    linewidths=0.5,
+    linecolor="white",
+    annot_kws={"rotation": 90}
 )
+
 axs[1, 1].invert_yaxis()
-axs[1, 1].set_title("Distribution of Seeds by Tournament Round")
+axs[1, 1].set_title("Seed Distribution by Round")
 axs[1, 1].set_xlabel("Seed")
 axs[1, 1].set_ylabel("Round")
 
-# Final Layout
-plt.suptitle("March Madness Seed Analysis Dashboard", fontsize=16, weight='bold')
+# Highlight selected seed column
+if highlight_seed in round_pct_plot.columns:
+    col_pos = list(round_pct_plot.columns).index(highlight_seed)
+    rect = plt.Rectangle(
+        (col_pos, 0),                  # x, y
+        1,                             # width
+        round_pct_plot.shape[0],       # height
+        fill=False,
+        edgecolor="orange",
+        linewidth=3,
+        clip_on=False
+    )
+    axs[1, 1].add_patch(rect)
+
+# Reverse y-axis if you want top-to-bottom reversed display
+axs[1, 1].invert_yaxis()
+
+# Final layout
+plt.suptitle(
+    f"March Madness Seed Analysis Dashboard (Highlighted Seed: {highlight_seed})",
+    fontsize=16,
+    weight="bold"
+)
+
 plt.tight_layout()
 plt.show()
